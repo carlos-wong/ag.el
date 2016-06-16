@@ -172,15 +172,33 @@ different window, according to `ag-reuse-window'."
   (apply #'append
          (mapcar (lambda (item) (list "--ignore" item)) ignores)))
 
-(cl-defun ag/search (string directory
+(defun helm-ag--parse-options-and-query (input)
+  (with-temp-buffer
+    (insert input)
+    (let (end options)
+      (goto-char (point-min))
+      (when (re-search-forward "\\s-*--\\s-+" nil t)
+        (setq end (match-end 0)))
+      (goto-char (point-min))
+      (while (re-search-forward "\\(?:^\\|\\s-+\\)\\(-\\S-+\\)\\(?:\\s-+\\|$\\)" end t)
+        (push (match-string-no-properties 1) options)
+        (when end
+          (cl-decf end (- (match-end 0) (match-beginning 0))))
+        (replace-match ""))
+      (cons options (buffer-string)))))
+
+
+(cl-defun ag/search (options string directory
                             &key (regexp nil) (file-regex nil) (file-type nil))
   "Run ag searching for the STRING given in DIRECTORY.
 If REGEXP is non-nil, treat STRING as a regular expression."
   (let ((default-directory (file-name-as-directory directory))
+        (parsed (helm-ag--parse-options-and-query options))
         (arguments ag-arguments)
         (shell-command-switch "-c"))
     (unless regexp
       (setq arguments (cons "--literal" arguments)))
+    (setq arguments (append (split-string options) arguments))
     (if ag-highlight-search
         ;; We're highlighting, so pass additional arguments for
         ;; highlighting the current search term using shell escape
@@ -405,13 +423,13 @@ If called with a prefix, prompts for flags to pass to ag."
   (apply #'ag/search string directory file-type))
 
 ;;;###autoload
-(defun ag-regexp (string directory)
+(defun ag-regexp (option string directory)
   "Search using ag in a given directory for a given regexp.
 The regexp should be in PCRE syntax, not Emacs regexp syntax.
 
 If called with a prefix, prompts for flags to pass to ag."
-  (interactive "sSearch regexp: \nDDirectory: ")
-  (ag/search string directory :regexp t))
+  (interactive "sOption: \nsSearch regexp: \nDDirectory: ")
+  (ag/search option string directory :regexp t))
 
 ;;;###autoload
 (defun ag-project (string)
